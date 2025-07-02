@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>增强视觉交互系统</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border-radius: 8px;
+        }
+        
+        .control-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        select, button, input[type="range"] {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        input[type="range"] {
+            padding: 0;
+            height: 30px;
+        }
+        
+        .blur-value {
+            text-align: center;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        .video-container {
+            position: relative;
+            margin: 0 auto;
+            width: 100%;
+            max-width: 640px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        video {
+            width: 100%;
+            display: block;
+            border-radius: 8px;
+        }
+        
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+        }
+        
+        #blurCanvas {
+            z-index: 1;
+        }
+        
+        #skeletonCanvas {
+            z-index: 2;
+        }
+        
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #e9f7ef;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .gesture-table {
+            margin-top: 30px;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .gesture-table th, .gesture-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+        
+        .gesture-table th {
+            background-color: #f2f2f2;
+        }
+        
+        .gesture-example {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto;
+            background-color: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+        }
+        
+        .gesture-example svg {
+            width: 60px;
+            height: 60px;
+        }
+        
+        .result-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        
+        .gesture-recognition {
+            font-size: 24px;
+            text-align: center;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e3f2fd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>增强视觉交互系统</h1>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="cameraSelect">选择摄像头：</label>
+                <select id="cameraSelect">
+                    <option value="">加载中...</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="blurLevel">模糊程度：</label>
+                <input type="range" id="blurLevel" min="0" max="20" step="1" value="0">
+                <div class="blur-value" id="blurValue">0</div>
+            </div>
+            
+            <div class="control-group">
+                <label>操作：</label>
+                <button id="startButton">开始</button>
+            </div>
+        </div>
+        
+        <div class="video-container">
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="blurCanvas"></canvas>
+            <canvas id="skeletonCanvas"></canvas>
+        </div>
+        
+        <div class="status" id="status">
+            等待开始...
+        </div>
+        
+        <div class="result-container">
+            <h3>当前识别结果：</h3>
+            <div class="gesture-recognition" id="gestureResult">未检测到手势</div>
+        </div>
+        
+        <h2 style="text-align: center; margin-top: 30px;">支持的手势</h2>
+        <table class="gesture-table">
+            <thead>
+                <tr>
+                    <th>手势图示</th>
+                    <th>名称</th>
+                    <th>含义</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="gesture-example" style="font-size:2.5em; text-align:center;">
+                            👍
+                        </div>
+                    </td>
+                    <td>大拇指向上</td>
+                    <td>返回上一页</td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="gesture-example" style="font-size:2.5em; text-align:center;">
+                            👎
+                        </div>
+                    </td>
+                    <td>大拇指向下</td>
+                    <td>返回下一页</td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="gesture-example" style="font-size:2.5em; text-align:center;">
+                            ✊
+                        </div>
+                    </td>
+                    <td>握拳</td>
+                    <td>刷新浏览器</td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="gesture-example" style="font-size:2.5em; text-align:center;">
+                            👉
+                        </div>
+                    </td>
+                    <td>向右指</td>
+                    <td>增大音量</td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="gesture-example" style="font-size:2.5em; text-align:center;">
+                            👈
+                        </div>
+                    </td>
+                    <td>向左指</td>
+                    <td>减小音量</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js"></script>
+    <script>
+        // 全局变量
+        let video, blurCanvas, blurCtx, skeletonCanvas, skeletonCtx;
+        let stream, mediaRecorder, recordedChunks = [];
+        let isProcessing = false;
+        let currentBlurLevel = 0;
+        let hands;
+        let lastGesture = "";
+        let lastGestureTime = 0;
+        let gestureActionDelay = 1000; // 手势动作间隔时间（毫秒）
+        let gestureStableStartTime = 0; // 新增：记录手势开始稳定的时间
+        let gesturePending = "";        // 新增：记录待确认的手势
+        const gestureStableThreshold = 3000; // 3秒后才执行操作
+        
+        // DOM 元素初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            video = document.getElementById('video');
+            blurCanvas = document.getElementById('blurCanvas');
+            blurCtx = blurCanvas.getContext('2d');
+            skeletonCanvas = document.getElementById('skeletonCanvas');
+            skeletonCtx = skeletonCanvas.getContext('2d');
+            
+            document.getElementById('startButton').addEventListener('click', toggleCamera);
+            
+            // 初始化模糊滑块
+            const blurLevelSlider = document.getElementById('blurLevel');
+            const blurValueDisplay = document.getElementById('blurValue');
+            
+            blurLevelSlider.addEventListener('input', (e) => {
+                currentBlurLevel = parseInt(e.target.value);
+                blurValueDisplay.textContent = currentBlurLevel;
+            });
+            
+            // 初始化摄像头列表
+            initializeCameraList();
+            
+            // 初始化 MediaPipe Hands
+            initializeHandTracking();
+        });
+
+        // 初始化摄像头列表
+        async function initializeCameraList() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                const cameraSelect = document.getElementById('cameraSelect');
+                
+                cameraSelect.innerHTML = '';
+                
+                if (videoDevices.length === 0) {
+                    cameraSelect.innerHTML = '<option value="">没有可用的摄像头</option>';
+                    return;
+                }
+                
+                videoDevices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `摄像头 ${cameraSelect.length + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('获取摄像头列表失败:', error);
+                document.getElementById('cameraSelect').innerHTML = '<option value="">无法访问摄像头</option>';
+            }
+        }
+
+        // 初始化 MediaPipe Hands
+        function initializeHandTracking() {
+            hands = new Hands({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`;
+                }
+            });
+            
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            
+            hands.onResults(onHandResults);
+        }
+
+        // 切换摄像头开关
+        async function toggleCamera() {
+            const startButton = document.getElementById('startButton');
+            const statusElement = document.getElementById('status');
+            
+            if (stream) {
+                // 停止摄像头
+                stopCamera();
+                startButton.textContent = '开始';
+                statusElement.textContent = '等待开始...';
+                document.getElementById('gestureResult').textContent = '未检测到手势';
+                return;
+            }
+            
+            // 开启摄像头
+            try {
+                const cameraSelect = document.getElementById('cameraSelect');
+                const constraints = {
+                    video: {
+                        deviceId: cameraSelect.value ? { exact: cameraSelect.value } : undefined,
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                
+                // 等待视频元数据加载
+                await new Promise(resolve => {
+                    video.onloadedmetadata = () => {
+                        resolve();
+                    };
+                });
+                
+                // 设置画布尺寸
+                const videoWidth = video.videoWidth;
+                const videoHeight = video.videoHeight;
+                
+                blurCanvas.width = videoWidth;
+                blurCanvas.height = videoHeight;
+                skeletonCanvas.width = videoWidth;
+                skeletonCanvas.height = videoHeight;
+                
+                // 开始处理视频帧
+                isProcessing = true;
+                processVideo();
+                
+                startButton.textContent = '停止';
+                statusElement.textContent = '正在运行...';
+            } catch (error) {
+                console.error('访问摄像头失败:', error);
+                statusElement.textContent = '访问摄像头失败: ' + error.message;
+            }
+        }
+
+        // 停止摄像头
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            
+            video.srcObject = null;
+            isProcessing = false;
+            
+            // 清空画布
+            if (blurCtx) blurCtx.clearRect(0, 0, blurCanvas.width, blurCanvas.height);
+            if (skeletonCtx) skeletonCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
+        }
+
+        // 处理视频帧
+        async function processVideo() {
+            if (!isProcessing) return;
+            
+            // 应用模糊效果
+            applyBlurEffect();
+            
+            // 将当前帧传递给 MediaPipe Hands
+            if (video.readyState === 4) {
+                await hands.send({ image: video });
+            }
+            
+            // 继续处理下一帧
+            requestAnimationFrame(processVideo);
+        }
+
+        // 应用模糊效果
+        function applyBlurEffect() {
+            if (!blurCtx) return;
+            // 始终先清空画布
+            blurCtx.clearRect(0, 0, blurCanvas.width, blurCanvas.height);
+            // 绘制原始视频帧
+            blurCtx.filter = 'none';
+            blurCtx.drawImage(video, 0, 0, blurCanvas.width, blurCanvas.height);
+            // 应用模糊效果
+            if (currentBlurLevel > 0) {
+                blurCtx.filter = `blur(${currentBlurLevel}px)`;
+                // 先将当前画布内容拷贝到一个临时canvas
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = blurCanvas.width;
+                tempCanvas.height = blurCanvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(blurCanvas, 0, 0, blurCanvas.width, blurCanvas.height);
+                // 再将临时canvas内容模糊后绘制回主canvas
+                blurCtx.drawImage(tempCanvas, 0, 0, blurCanvas.width, blurCanvas.height);
+                blurCtx.filter = 'none';
+            }
+        }
+
+        // 手部检测结果处理
+        function onHandResults(results) {
+            // 清空骨骼画布
+            skeletonCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                // 绘制手部骨骼
+                drawHandLandmarks(results.multiHandLandmarks[0]);
+                
+                // 识别手势
+                const gesture = recognizeGesture(results.multiHandLandmarks[0]);
+                
+                // 手势稳定检测逻辑
+                if (gesture !== gesturePending) {
+                    gesturePending = gesture;
+                    gestureStableStartTime = Date.now();
+                }
+                // 更新手势显示
+                document.getElementById('gestureResult').textContent = gesture;
+                // 只有当手势稳定3秒后才执行操作
+                if (
+                    gesturePending !== "" &&
+                    gesturePending !== "未检测到手势" &&
+                    gesturePending !== "未识别的手势" &&
+                    Date.now() - gestureStableStartTime >= gestureStableThreshold &&
+                    gesturePending !== lastGesture // 避免重复执行
+                ) {
+                    executeGestureAction(gesturePending);
+                    lastGesture = gesturePending;
+                }
+            } else {
+                // 未检测到手势
+                document.getElementById('gestureResult').textContent = "未检测到手势";
+                gesturePending = "";
+                gestureStableStartTime = 0;
+                lastGesture = "未检测到手势";
+            }
+        }
+
+        // 执行手势相关操作
+        function executeGestureAction(gesture) {
+            const now = Date.now();
+            
+            // 防止手势动作过于频繁触发
+            if (now - lastGestureTime < gestureActionDelay) {
+                return;
+            }
+            
+            lastGestureTime = now;
+            
+            // 根据不同手势执行不同操作
+            if (gesture.includes("握拳")) {
+                // 刷新浏览器
+                location.reload(true);
+            } else if (gesture.includes("大拇指向上")) {
+                // 返回上一页
+                history.back();
+            } else if (gesture.includes("大拇指向下")) {
+                // 返回下一页
+                window.history.forward();
+            } else if (gesture.includes("向右指")) {
+                // 增大音量
+                changeVolume(0.1);
+            } else if (gesture.includes("向左指")) {
+                // 减小音量
+                changeVolume(-0.1);
+            }
+        }
+
+        // 改变系统音量
+        function changeVolume(delta) {
+            // 尝试查找页面上的音频/视频元素
+            const mediaElements = document.querySelectorAll('audio, video');
+            
+            mediaElements.forEach(media => {
+                let newVolume = Math.min(Math.max(media.volume + delta, 0), 1);
+                media.volume = newVolume;
+            });
+            
+            // 如果页面上有音频元素，显示音量变化提示
+            const statusElement = document.getElementById('status');
+            if (mediaElements.length > 0) {
+                const volumePercent = Math.round(mediaElements[0].volume * 100);
+                statusElement.textContent = `音量: ${volumePercent}%`;
+                
+                // 3秒后恢复状态显示
+                setTimeout(() => {
+                    statusElement.textContent = '正在运行...';
+                }, 3000);
+            }
+        }
+
+        // 绘制手部骨骼
+        function drawHandLandmarks(landmarks) {
+            // 设置绘图样式
+            skeletonCtx.fillStyle = '#00FF00';
+            skeletonCtx.strokeStyle = '#00FF00';
+            skeletonCtx.lineWidth = 2;
+            
+            // 绘制关键点
+            for (const landmark of landmarks) {
+                const x = landmark.x * skeletonCanvas.width;
+                const y = landmark.y * skeletonCanvas.height;
+                
+                skeletonCtx.beginPath();
+                skeletonCtx.arc(x, y, 5, 0, 2 * Math.PI);
+                skeletonCtx.fill();
+            }
+            
+            // 绘制连接线 - 手指
+            const fingers = [
+                [0, 1, 2, 3, 4],          // 拇指
+                [0, 5, 6, 7, 8],          // 食指
+                [0, 9, 10, 11, 12],       // 中指
+                [0, 13, 14, 15, 16],      // 无名指
+                [0, 17, 18, 19, 20]       // 小指
+            ];
+            
+            for (const finger of fingers) {
+                for (let i = 1; i < finger.length; i++) {
+                    const x1 = landmarks[finger[i - 1]].x * skeletonCanvas.width;
+                    const y1 = landmarks[finger[i - 1]].y * skeletonCanvas.height;
+                    const x2 = landmarks[finger[i]].x * skeletonCanvas.width;
+                    const y2 = landmarks[finger[i]].y * skeletonCanvas.height;
+                    
+                    skeletonCtx.beginPath();
+                    skeletonCtx.moveTo(x1, y1);
+                    skeletonCtx.lineTo(x2, y2);
+                    skeletonCtx.stroke();
+                }
+            }
+            
+            // 绘制手掌连接线
+            const palmBase = [0, 5, 9, 13, 17, 0];
+            for (let i = 1; i < palmBase.length; i++) {
+                const x1 = landmarks[palmBase[i - 1]].x * skeletonCanvas.width;
+                const y1 = landmarks[palmBase[i - 1]].y * skeletonCanvas.height;
+                const x2 = landmarks[palmBase[i]].x * skeletonCanvas.width;
+                const y2 = landmarks[palmBase[i]].y * skeletonCanvas.height;
+                
+                skeletonCtx.beginPath();
+                skeletonCtx.moveTo(x1, y1);
+                skeletonCtx.lineTo(x2, y2);
+                skeletonCtx.stroke();
+            }
+        }
+
+        // 识别手势
+        function recognizeGesture(landmarks) {
+            // 计算手指是否伸展的辅助函数
+            function isFingerExtended(fingerTip, fingerBase, wrist) {
+                // 如果指尖的y坐标小于指根的y坐标，则认为手指是伸展的(屏幕坐标系中，y越小越靠上)
+                return fingerTip.y < fingerBase.y;
+            }
+            
+            // 获取关键点
+            const wrist = landmarks[0];
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const middleTip = landmarks[12];
+            const ringTip = landmarks[16];
+            const pinkyTip = landmarks[20];
+            
+            const indexBase = landmarks[5];
+            const middleBase = landmarks[9];
+            const ringBase = landmarks[13];
+            const pinkyBase = landmarks[17];
+            
+            // 检查拇指方向
+            const isThumbUp = thumbTip.y < wrist.y && thumbTip.x > wrist.x;
+            const isThumbDown = thumbTip.y > wrist.y && thumbTip.x > wrist.x;
+            
+            // 检查各手指是否伸展
+            const isIndexExtended = isFingerExtended(indexTip, indexBase, wrist);
+            const isMiddleExtended = isFingerExtended(middleTip, middleBase, wrist);
+            const isRingExtended = isFingerExtended(ringTip, ringBase, wrist);
+            const isPinkyExtended = isFingerExtended(pinkyTip, pinkyBase, wrist);
+            
+            // 检查手掌是否张开
+            const isPalmOpen = isIndexExtended && isMiddleExtended && isRingExtended && isPinkyExtended;
+            
+            // 检查握拳
+            const isFist = !isIndexExtended && !isMiddleExtended && !isRingExtended && !isPinkyExtended;
+            
+            // 检查胜利手势
+            //const isVictory = isIndexExtended && isMiddleExtended && !isRingExtended && !isPinkyExtended;
+            
+            // 检查指向方向
+            const isPointingRight = isIndexExtended && !isMiddleExtended && !isRingExtended && !isPinkyExtended && 
+                                   indexTip.x > indexBase.x;
+            
+            const isPointingLeft = isIndexExtended && !isMiddleExtended && !isRingExtended && !isPinkyExtended && 
+                                  indexTip.x < indexBase.x;
+            
+            // 识别手势
+            if (isThumbUp) {
+                return "大拇指向上 👍";
+            } else if (isThumbDown) {
+                return "大拇指向下 👎";
+            } else if (isFist) {
+                return "握拳 ✊";
+            } else if (isPointingRight) {
+                return "向右指 👉";
+            } else if (isPointingLeft) {
+                return "向左指 👈";
+            } else {
+                return "未识别的手势";
+            }
+        }
+    </script>
+</body>
+</html>
